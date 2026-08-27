@@ -1,0 +1,39 @@
+{
+  "_comment": "P1-T7 hybrid retrieval knobs (weights/constants live in config, not code \u2014 gate ruling). rrf_k is the standard RRF dampening constant; weights multiply each ranking's RRF contribution. Reranker ratified 2026-07-09: local quantized ONNX cross-encoder, pinned by repo+file (D17 \u2014 personal corpus stays on-machine); int8-vs-fp32 delta measured, top-5 sets identical on all benchmark sets.",
+  "dense_top_k": 50,
+  "bm25_top_k": 50,
+  "rrf_k": 60,
+  "rrf_weights": {
+    "dense": 1.0,
+    "bm25": 1.0
+  },
+  "final_top_k": 5,
+  "reranker": {
+    "enabled": true,
+    "model_repo": "Xenova/ms-marco-MiniLM-L-6-v2",
+    "model_file": "onnx/model_quantized.onnx",
+    "candidates": 50,
+    "blend_with_fused": true
+  },
+  "not_found": {
+    "_comment": "T8 owner-ratified gate: decline when max rerank score < threshold. Calibrated 2026-07-13 against the 567-file corpus + ms-marco-MiniLM int8 (margin: worst answerable -1.27 / best guard -2.07). REVALIDATE on reranker model change or major corpus growth.",
+    "enabled": true,
+    "min_rerank_score": -1.67
+  },
+  "related_bands": {
+    "_comment": "P2-T1 verdict bands for /related \u2014 OWN calibration (T8 lesson forward: thresholds are calibrated to their input distribution; bare topics score differently than questions). Spot-check 2026-07-14, 6 covered + 4 absent topics: covered min +4.19, absent max -5.47 (ask-shape reference: -1.27/-2.07). Bands sit in the 9.67-wide margin.",
+    "covered_min": 0.0,
+    "adjacent_min": -4.0
+  },
+  "routing": {
+    "_comment": "P2-T3 routing v1 (D3's ladder in product). Band derived from 8 re-lock runs (2026-07-15): failures cluster at gs-024's dead-constant 0.98; pass median 4.70; shelf analysis showed identical failure-capture at 1.0/1.5/2.0. Upper cutoff 1.5 per director amendment = drift headroom for 0.98 (0.52 vs 0.02), incremental cost ONE recurring question (gs-011 @ 1.39). Escalates ~6 of 31 exam questions. Revalidate on reranker change or major corpus growth (T8 margin discipline: every results file prints band edges + headroom).",
+    "enabled": true,
+    "escalate_band": [
+      -1.67,
+      1.5
+    ],
+    "model": "frontier",
+    "default_model": "cheap",
+    "always_frontier_questions": []
+  }
+}
