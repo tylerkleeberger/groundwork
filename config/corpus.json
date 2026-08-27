@@ -1,0 +1,16 @@
+{
+  "profile": "demo",
+  "profiles": {
+    "personal": {
+      "corpus_dir": "corpus",
+      "db_schema": "public",
+      "eval_set": "evals/golden_set.jsonl"
+    },
+    "demo": {
+      "corpus_dir": "corpus_demo",
+      "db_schema": "demo",
+      "eval_set": "evals/demo_golden_set.jsonl",
+      "retrieval_config": "config/retrieval.demo.json"
+    }
+  }
+}

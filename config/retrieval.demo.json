@@ -1,0 +1,39 @@
+{
+  "_comment": "P5-T3 DEMO-PROFILE retrieval knobs. Retrieval mechanics (hybrid weights, rrf_k, top_k, reranker) are corpus-independent and are copied from config/retrieval.json deliberately \u2014 they are algorithm settings, not measurements. THRESHOLDS ARE NOT COPIED: not_found and routing are derived from THIS corpus's own score distribution (T8's standing rule, restated at the P5-T3 gate). This file starts with both gates OFF for the calibration run that produces the distribution.",
+  "dense_top_k": 50,
+  "bm25_top_k": 50,
+  "rrf_k": 60,
+  "rrf_weights": {
+    "dense": 1.0,
+    "bm25": 1.0
+  },
+  "final_top_k": 5,
+  "reranker": {
+    "enabled": true,
+    "model_repo": "Xenova/ms-marco-MiniLM-L-6-v2",
+    "model_file": "onnx/model_quantized.onnx",
+    "candidates": 50,
+    "blend_with_fused": true
+  },
+  "not_found": {
+    "_comment": "P5-T3 DEMO gate, DERIVED on this corpus \u2014 never transferred. Calibration run 20260826T143947 (gate off, all 15 cases scored): worst answerable -0.2844 (dg-005) / best guard -0.3858 (dg-012), margin 0.1014; threshold = midpoint = -0.3351, the same derivation rule the personal corpus's -1.67 came from (-1.27 / -2.07). WATCH: this margin is 0.10 against the personal corpus's 0.80. A single-project documentation corpus is topically homogeneous, so out-of-corpus questions still retrieve semi-relevant chunks and the score distributions compress \u2014 a narrow-domain corpus makes the not-found gate HARDER, not easier. REVALIDATE on any reranker or corpus-pin change; treat a margin below 0.05 as a re-derivation trigger.",
+    "enabled": true,
+    "min_rerank_score": -0.3351
+  },
+  "related_bands": {
+    "_comment": "NOT DERIVED for the demo profile \u2014 /related is not part of the demo exam. Left at the personal values but UNUSED here; a demo /related calibration is its own task if ever needed.",
+    "covered_min": 0.0,
+    "adjacent_min": -4.0
+  },
+  "routing": {
+    "_comment": "DISABLED pending demo-derived evidence. The personal band [-1.67, 1.5] was derived from 8 runs of failure clustering on the personal corpus; importing it would be exactly the threshold transfer this ruling forbids.",
+    "enabled": false,
+    "escalate_band": [
+      -1.67,
+      1.5
+    ],
+    "model": "frontier",
+    "default_model": "cheap",
+    "always_frontier_questions": []
+  }
+}
