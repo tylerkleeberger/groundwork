@@ -1,0 +1,9 @@
+{
+  "planner_model": "frontier",
+  "synth_model": "frontier",
+  "min_sub_questions": 2,
+  "max_sub_questions": 6,
+  "planner_max_tokens": 1000,
+  "synth_max_tokens": 2000,
+  "worker_concurrency": 6
+}
