@@ -1,0 +1,21 @@
+{
+  "actions_enabled": true,
+  "max_arg_bytes": 65536,
+  "tools": {
+    "related_check": {
+      "class": "read",
+      "allowed": true,
+      "args_required": ["topic"]
+    },
+    "groundwork_sync": {
+      "class": "write",
+      "allowed": true,
+      "args_required": []
+    },
+    "em_draft_kb": {
+      "class": "write",
+      "allowed": true,
+      "args_required": ["title", "body_markdown", "provenance"]
+    }
+  }
+}
