@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+"""P2-T1 `ask` — Groundwork's daily-use face. Stdlib only, NO .env needed
+(the /ask endpoint is local and secretless — that's the friction win).
+
+  ask "how do I ..."          grounded, cited answer
+  ask --related "topic"      pre-generation KB check (the external-KB
+                              seam; see README § Integration contract)
+  ask --health               one-line stack status with restart hints
+  ask --flag [reason]        flag the last ask as a bad answer (P2-T2) —
+                              GLOBAL last, one snapshot per user, not per
+                              terminal; the flag file carries the question
+                              so a cross-terminal mix-up is visible at
+                              adjudication rather than silent
+  ask --json / --quiet       raw response / answer only
+
+Add to PATH via your dotfiles (e.g. alias ask="$REPO/scripts/ask").
+"""
+
+import argparse
+import datetime
+import json
+import pathlib
+import socket
+import sys
+import urllib.error
+import urllib.request
+
+ASK_URL = "http://localhost:8310"
+LAST_ASK = pathlib.Path.home() / ".groundwork" / "last-ask.json"
+FLAGS_DIR = pathlib.Path(__file__).resolve().parent.parent / "evals" / "flags"
+
+DIM, BOLD, RESET = "\033[2m", "\033[1m", "\033[0m"
+GREEN, RED, YELLOW = "\033[32m", "\033[31m", "\033[33m"
+
+SERVICES = [  # (name, host, port, http_path_or_None, restart hint)
+    ("app", "localhost", 8310, "/openapi.json", "scripts/app.sh  (launchd: launchctl kickstart -k gui/$UID/com.groundwork.app)"),
+    ("gateway", "localhost", 4000, "/health/liveliness", "scripts/gateway.sh  (launchd: com.groundwork.gateway)"),
+    ("ollama", "localhost", 11434, "/", "ollama serve  (launchd: com.groundwork.ollama)"),
+    ("postgres", "localhost", 8302, None, "docker compose up -d"),
+    ("langfuse", "localhost", 8300, None, "docker compose -f ops/langfuse/docker-compose.yml up -d"),
+]
+
+
+def post(path: str, body: dict, timeout: float = 120.0) -> dict:
+    req = urllib.request.Request(
+        ASK_URL + path, data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode())
+
+
+def check(host: str, port: int, path: str | None) -> bool:
+    try:
+        if path is None:
+            with socket.create_connection((host, port), timeout=2):
+                return True
+        urllib.request.urlopen(f"http://{host}:{port}{path}", timeout=2)
+        return True
+    except Exception:
+        return False
+
+
+def docker_layer_hint() -> str | None:
+    """Distinguish 'Docker engine down' from 'engine up, container down'
+    (P2 Docker mitigation item 2) — the owner never diagnoses which layer
+    failed. Uses `docker info` with a hard timeout: the stale-backend
+    failure mode HANGS the CLI rather than erroring."""
+    import subprocess
+    try:
+        subprocess.run(["docker", "info"], capture_output=True, timeout=3,
+                       check=True)
+        return "Docker engine UP → container down: docker compose up -d (both stacks)"
+    except subprocess.TimeoutExpired:
+        return ("Docker engine UNRESPONSIVE (stale-backend signature) → "
+                "pkill -f com.docker; open -a Docker  — if still dead: "
+                "Docker Desktop Troubleshoot → Reset")
+    except Exception:
+        return "Docker engine DOWN → open -a Docker"
+
+
+def cmd_health() -> int:
+    up, down = [], []
+    for name, host, port, path, hint in SERVICES:
+        (up if check(host, port, path) else down).append((name, hint))
+    line = " ".join(f"{n} {GREEN}✓{RESET}" for n, _ in up)
+    if not down:
+        print(f"groundwork: {line} — all up")
+        return 0
+    line_down = " ".join(f"{n} {RED}✗{RESET}" for n, _ in down)
+    print(f"groundwork: {line} {line_down}")
+    docker_backed = {"postgres", "langfuse"}
+    for n, hint in down:
+        if n in docker_backed:
+            print(f"  {YELLOW}{n} down{RESET} → {docker_layer_hint()}")
+        else:
+            print(f"  {YELLOW}{n} down{RESET} → {hint}")
+    return 1
+
+
+def write_last_ask(question: str, resp: dict) -> None:
+    LAST_ASK.parent.mkdir(exist_ok=True)
+    LAST_ASK.write_text(json.dumps({
+        "asked_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "question": question, "response": resp,
+    }))
+
+
+def cmd_flag(reason: str | None) -> int:
+    """P2-T2: one-keystroke bad-answer flag. Snapshots the GLOBAL last ask
+    (question included — cross-terminal mix-ups surface at adjudication)."""
+    if not LAST_ASK.exists():
+        print(f"{RED}nothing to flag{RESET} — no last ask recorded", file=sys.stderr)
+        return 1
+    last = json.loads(LAST_ASK.read_text())
+    resp = last["response"]
+    FLAGS_DIR.mkdir(parents=True, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+    out = FLAGS_DIR / f"{ts}.json"
+    out.write_text(json.dumps({
+        "flagged_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "asked_at": last.get("asked_at"),
+        "reason": reason,
+        "question": last.get("question"),
+        "answer": resp.get("answer"),
+        "citations": resp.get("citations"),
+        "retrieved": resp.get("retrieved"),
+        "chunks": resp.get("chunks"),
+        "gate_score": resp.get("gate_score"),
+        "confidence": resp.get("confidence"),
+        "source": "cli-global-last",
+    }, indent=2))
+    print(f"flagged → {out.relative_to(FLAGS_DIR.parent.parent)}"
+          f"{'' if reason else '  (no reason given — fine)'}")
+    print(f"{DIM}adjudication happens in batches at re-locks: scripts/adjudicate.py{RESET}")
+    return 0
+
+
+def render_ask(resp: dict, quiet: bool, elapsed: float) -> None:
+    answer = resp.get("answer", "")
+    declined = answer.startswith("I don't know")
+    if quiet:
+        print(answer)
+        return
+    if declined:
+        print(f"{DIM}{answer}{RESET}")
+    else:
+        print(answer)
+    print()
+    seen = set()
+    for c in resp.get("chunks", []):
+        if c["source_id"] in seen:
+            continue
+        seen.add(c["source_id"])
+        mark = "*" if c["source_id"] in resp.get("citations", []) else " "
+        print(f"{DIM}  {mark} [{c['source_id'][:8]}] {c.get('title') or '?'}"
+              f" · {c.get('source_table') or '?'}{RESET}")
+    gate = resp.get("gate_score")
+    print(f"{DIM}confidence {resp.get('confidence')} · gate "
+          f"{gate if gate is not None else 'n/a'} · {elapsed:.1f}s{RESET}")
+
+
+def render_related(resp: dict) -> None:
+    verdict = resp["verdict"]
+    color = {"likely covered": GREEN, "adjacent material": YELLOW,
+             "nothing close": RED}.get(verdict, "")
+    print(f"{BOLD}{color}{verdict}{RESET}  {DIM}(gate {resp['gate_score']}){RESET}")
+    for s in resp.get("sources", []):
+        print(f"  {s['best_rerank_score']:>7.2f}  [{s['source_id'][:8]}] "
+              f"{s.get('title') or '?'} · {s.get('source_table') or '?'} "
+              f"{DIM}({s['chunk_hits']} chunk{'s' if s['chunk_hits'] != 1 else ''}){RESET}")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="ask", add_help=True)
+    ap.add_argument("question", nargs="?", help="question for the corpus")
+    ap.add_argument("--related", metavar="TOPIC", help="pre-generation KB check")
+    ap.add_argument("--health", action="store_true", help="stack status")
+    ap.add_argument("--flag", nargs="?", const=None, default="__NOFLAG__",
+                    metavar="REASON", help="flag the last ask (reason optional)")
+    ap.add_argument("--json", action="store_true", help="raw JSON response")
+    ap.add_argument("--quiet", action="store_true", help="answer text only")
+    args = ap.parse_args()
+
+    if args.health:
+        return cmd_health()
+    if args.flag != "__NOFLAG__":
+        return cmd_flag(args.flag)
+    try:
+        import time
+        if args.related:
+            resp = post("/related", {"topic": args.related}, timeout=60)
+            print(json.dumps(resp, indent=2)) if args.json else render_related(resp)
+            return 0
+        if not args.question:
+            ap.print_help()
+            return 2
+        t0 = time.monotonic()
+        resp = post("/ask", {"question": args.question})
+        write_last_ask(args.question, resp)
+        if args.json:
+            print(json.dumps(resp, indent=2))
+        else:
+            render_ask(resp, args.quiet, time.monotonic() - t0)
+        return 0
+    except (urllib.error.URLError, OSError) as e:
+        print(f"{RED}groundwork app unreachable{RESET} ({e}) — try: ask --health",
+              file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
