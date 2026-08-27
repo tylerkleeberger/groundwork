@@ -1,0 +1,29 @@
+# D16: CI enforces the offline floor. Live evals (marked `live`) run locally
+# before PRs; the results file is referenced in the PR description from
+# P1-T5 onward. No secrets, no services in this workflow — by design.
+name: CI
+on:
+  pull_request:
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements.txt
+      - run: pytest -m "not live"
+      # P5-T4: the leak scanner runs on every PR, structural classes only.
+      # corpus/ is gitignored, so there is nothing here to generate content
+      # seeds from and the scanner would (correctly) refuse to render a
+      # verdict; --structural-only is this job deliberately asking for the
+      # reduced check, and the scanner labels every line of that output as
+      # covering shapes rather than content. Catches a machine path, a
+      # database hostname or a stray UUID committed by accident.
+      # --skip-private: this repo's tracked private surface (ops/ launch
+      # agents, the director's instructions, the journal) legitimately holds
+      # machine paths and a database endpoint. Scanning only what could ship
+      # is the check with a real question behind it.
+      - run: python scripts/leak_scan.py . --structural-only --no-history --skip-private

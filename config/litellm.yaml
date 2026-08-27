@@ -1,0 +1,28 @@
+# Gateway config — the single seam all programmatic model calls pass through.
+# Routing is PER TASK (see model aliases), never per turn (protects prompt cache).
+model_list:
+  - model_name: frontier          # hard reasoning, research synthesis
+    litellm_params:
+      model: anthropic/claude-sonnet-4-6      # upgrade to opus-class when evals demand
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: cheap             # classification, extraction, routing decisions
+    litellm_params:
+      model: anthropic/claude-haiku-4-5-20251001
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: local             # zero-marginal-cost floor (Silicon Mac / Ollama)
+    litellm_params:
+      model: ollama/qwen2.5:7b-instruct
+      api_base: http://localhost:11434        # LAN IP if Mac is a separate machine
+  - model_name: embed             # corpus + query embeddings, 768d (D17)
+    litellm_params:
+      model: ollama/nomic-embed-text          # personal corpus stays local;
+      api_base: http://localhost:11434        # upgrade only on golden-set evidence
+      drop_params: true           # ollama rejects encoding_format (OpenAI SDK default)
+
+litellm_settings:
+  max_budget: 20.0                # hard cap, USD — raise deliberately, in config
+                                  # 10→20 director-ratified 2026-07-17 (measured
+                                  # P3 burn; two-fence design intact)
+  budget_duration: 30d
+  success_callback: ["langfuse"]  # every call traced automatically
+  failure_callback: ["langfuse"]

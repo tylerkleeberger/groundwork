@@ -1,0 +1,27 @@
+# secrets — the bare pattern covers root .env AND ops/langfuse/.env
+.env
+
+# environments & caches
+.venv/
+__pycache__/
+
+# owner's personal documents — never committed (DIRECTION.md D7)
+corpus/
+
+# generated outputs
+.dispatch/
+evals/results/
+# raw real-use flags (P2-T2) — adjudicated candidates in evals/candidates/
+# are TRACKED; the raw stream is not
+evals/flags/
+
+# IDE / OS
+.idea/
+.DS_Store
+
+# Claude Code session-local files (a shared .claude/settings.json WOULD be committed)
+.claude/settings.local.json
+.claude/bash-commands.log
+
+# P5-T4: content seeds for the public scanner — NEVER committed
+.leak_seeds*.json

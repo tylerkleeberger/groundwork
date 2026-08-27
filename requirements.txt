@@ -1,0 +1,25 @@
+# Direct dependencies, pinned at the versions verified working at P0 gate
+# (2026-07-05). Hand-maintained by policy: no lock-file tooling until a
+# second machine or CI exists (Director, P0 closeout — earned complexity).
+litellm[proxy]==1.91.0
+anthropic==0.116.0
+openai==2.44.0
+pytest==9.1.1
+# langfuse SDK must stay on the v2 line: litellm 1.91.0's callback reads
+# langfuse.version.__version__, removed in SDK v3+. Unpinned drift to 4.13.0
+# silently killed all tracing (P0 gate run 1 failure). v2 SDK is compatible
+# with the self-hosted Langfuse v3 server.
+langfuse>=2.60,<3
+python-dotenv==1.2.2
+# read-only corpus export (T1-export); driver for APP_CORPUS_SOURCE_URL
+psycopg[binary]==3.3.4
+# app (P1-T3+) — already transitive via litellm[proxy]; pinned as direct
+# deps because app/ imports them directly
+fastapi==0.139.0
+uvicorn==0.50.0
+# P1-T7 reranker (owner-ratified 2026-07-09): local quantized ONNX
+# cross-encoder. NOT torch/sentence-transformers: torch's CPU path
+# bus-faults in Apple Accelerate on this macOS build (journaled), and the
+# ONNX path is ~940MB lighter. tokenizers/huggingface_hub/numpy arrive
+# transitively and are imported directly by app/reranker.py.
+onnxruntime==1.27.0

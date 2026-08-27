@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# D14 guard (added 2026-07-14 after the executor pushed a journal commit
+# straight to main — owner had merged PR #17 and left the shared checkout
+# on main; the executor committed without checking the branch). Free-plan
+# branch protection is not enforced on private repos, so the discipline is
+# enforced HERE. Bypass for a sanctioned case: ALLOW_MAIN=1 git push …
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  if [[ "$remote_ref" == "refs/heads/main" && "${ALLOW_MAIN:-}" != "1" ]]; then
+    echo "BLOCKED: direct push to main violates D14 (PRs only)." >&2
+    echo "         If this is a sanctioned exception: ALLOW_MAIN=1 git push" >&2
+    exit 1
+  fi
+done
+exit 0
