@@ -146,7 +146,3 @@ def test_sync_refuses_under_a_non_personal_profile():
     msg = profile_refusal("demo")
     assert msg and "REFUSING TO SYNC" in msg
     assert "export_demo_corpus.py" in msg, "name the right tool for the job"
-
-def test_deliberately_failing_probe():
-    """P5-T4 gate: a PR whose check FAILS must be unmergeable. Deleted after."""
-    assert False, "deliberate failure to prove the required check is enforced"
