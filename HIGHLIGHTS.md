@@ -122,6 +122,16 @@ required-status-check rule at all. Commit `c8427b9` in this history is the
 empty commit that proved the first half, and it is left in place deliberately
 as the receipt. **An enabled control is not a specified control.**
 
+A third sibling, and the sharpest of the three: once the rule *was* added, its
+context was **mistyped** — `offline tests` with a space, against a check
+reporting itself as `offline-tests` with a hyphen. The rule was configured,
+active, and marked **Required**, and it would have waited forever for a string
+nothing would ever report. It **failed closed**, which is why it was safe
+rather than dangerous, and it was **invisible until a real pull request met
+it** and sat at *"Expected — Waiting for status to be reported"* with its merge
+button disabled. **Verify a required check's context against the reporting
+context byte-for-byte; never type it from memory.**
+
 ### "A correct remedy behind an incorrect verdict is a more destructive bug"
 *P5-T4, the sharpest lesson of the build.* A watchdog existed to recover a
 stale container backend. It was hardened — correctly — to escalate from a
@@ -161,6 +171,25 @@ never verified** — and the pre-publish sweep falsified it by finding a real
 private identifier in a test fixture. The inventory's value was never its
 confidence; it was supposed to be its evidence.
 
+### "Three views of the same instant are one observation, not three confirmations"
+
+*The verification rule the last night produced.* A required-check rule was
+reported missing — and the report cited **three independent angles**: the rule
+set's own rule list, an enumeration of every rule set, and the platform's
+computed effective-rules view. All three agreed. All three were also queried
+within the same few seconds, *before the change being looked for had been
+saved*.
+
+**Independence has to be in the evidence, not in the endpoint.** Querying one
+fact three ways proves only that three endpoints agree with each other; it says
+nothing about whether the fact was true a minute later. The apparent weight of
+"three angles" stood in for the passage of time, and a correct hypothesis —
+that the context string was mistyped — looked refuted when it was right.
+
+The rule that follows: **when a read contradicts a claim that something was
+just changed, re-read after the change could have landed.** A read taken before
+a save is not a refutation.
+
 ---
 
 ## The incidents, in order
@@ -188,6 +217,8 @@ confidence; it was supposed to be its evidence.
 | 2026-08-27 | The pre-publish sweep found a real private identifier in a test fixture, contradicting a written inventory row | *A disposition row must cite its verification* |
 | 2026-08-27 | The watchdog killed a healthy service every 15 minutes for hours | *A correct remedy behind an incorrect verdict is a more destructive bug*; *a monitor that cannot probe must not conclude failure* |
 | 2026-08-27 | A pull request with a failing check merged into a protected branch | *An enabled control is not a specified control* |
+| 2026-08-27 | A required check, once added, was configured with a mistyped context and waited forever for a string nothing would report — caught only when a real PR sat at "Expected" with its merge disabled | Verify a required check's context against the reporting context byte-for-byte |
+| 2026-08-27 | A rule was reported missing on the strength of three API reads — all taken seconds apart, before the change had been saved | *Three views of the same instant are one observation, not three confirmations* |
 
 ---
 

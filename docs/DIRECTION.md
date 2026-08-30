@@ -117,14 +117,17 @@ load_dotenv() walking up from its install path proved the class. Never rely on
 shell-level unsetting to resolve such collisions; rename to the app-scoped
 name. Gateway runs LITELLM_MODE=PRODUCTION always.
 
-**D14 — Git is executor-operated; merge is owner-gated.** The executor
-branches, commits, and opens PRs; only the owner merges. From P1 on, PR
-review replaces working-tree review as the D9 checkpoint (diff + runtime
-evidence live in the PR description), and BUILD_JOURNAL entries reference PR
-numbers. Branch naming: `<phase-task>-<slug>`. The P0 bootstrap commit
-directly on main — made on Director instruction, before the remote existed —
-is the sole exception; branch protection on main converts the owner-gate
-from promise to enforcement immediately after.
+**D14 — Git is executor-operated; merges require recorded authority.** The
+executor branches, commits, and opens PRs. A private-repo PR may be self-merged
+only with an explicit director PASS and green CI, followed by mechanical
+verification of `state`, `mergedAt`, and `baseRefName`. Public-repo PRs remain
+owner-merged without exception; phase-gate tags and ratification merges also
+require the owner's word. From P1 on, PR review replaces working-tree review as
+the D9 checkpoint (diff + runtime evidence live in the PR description), and
+BUILD_JOURNAL entries reference PR numbers. Branch naming:
+`<phase-task>-<slug>`. The P0 bootstrap commit directly on main — made on
+Director instruction, before the remote existed — is the sole exception;
+branch protection on main converts the owner-gate from promise to enforcement.
 
 **D15 — Trunk-based development, ratified.** main is always releasable truth;
 one short-lived branch per spec task (`<phase-task>-<slug>`); no
@@ -159,6 +162,37 @@ only on golden-set evidence of embedding-quality recall failures, and costs
 exactly one alias change plus a full re-embed. Model identity + dimensions
 are pinned in three places: gateway config, the DB's ingest_meta row
 (ingest refuses to mix models), and the Ollama model tag.
+
+**D18 — Durable requests.** An invocation is a row on the CC-OS Message bus,
+not only a live HTTP call. Answers return to the asking surface
+retry-until-delivered through the CheckIn machinery. This applies the pattern
+that survived kill -9, a billing outage, and dormancy to requests themselves.
+
+**D19 — Reachability over relocation.** The serving tier stays local, leaving
+embeddings, vectors, thresholds, and exam evidence untouched. A tunnel
+(Cloudflare Tunnel or Tailscale) makes it reachable so phone-time answers
+arrive in seconds; the durable queue is the fallback when the laptop is
+unreachable, so no request is lost. Relocating embeddings/vectors to a hosted
+tier is a P7 candidate triggered by ledger evidence of queued requests the
+owner was actively waiting on and/or sustained local-stack burden on the
+owner's machine (two incidents are already on record).
+
+**D20 — Sync is split by direction.** Inbound EM-to-corpus sync is
+pre-authorized on a schedule with one audit row per run; its blast radius is
+groundwork's own rebuildable store. Outbound `em_draft_kb`-to-EM-inbox writes
+remain gated per act. Inbound returns to gated if it gains any delete path
+beyond the existing prune or writes outside groundwork. An approval firing
+hourly for a benign act trains the approver to stop reading — the cries-wolf
+rule applies to the gate itself.
+
+**D21 — Multi-corpus serving is P7.** Serving other CC-OS spaces through D7
+profiles is explicitly deferred beyond the Engineering Map lane.
+
+**D22 — Exposure requires authentication.** The API has been localhost-only by
+design, and a tunnel must never terminate at an open port. T3 chooses between
+Cloudflare Access and a shared-secret header using evidence, then proves an
+authenticated external request succeeds and an unauthenticated one is refused
+and logged.
 
 ## 3 · Field principles the build encodes (the research, distilled)
 

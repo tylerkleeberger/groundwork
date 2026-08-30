@@ -361,3 +361,70 @@ def test_structural_only_actually_restricts_the_scan(tmp_path, monkeypatch, caps
     assert ls.main() == 0, "content seeds must not be consulted"
     out = capsys.readouterr().out
     assert "not consulted (--structural-only)" in out
+
+
+# ---------- allowlist vs denylist: the overlap that must not exist ----------
+
+def test_public_surface_and_private_only_are_disjoint():
+    """PRIVATE_ONLY is a DENYLIST standing next to the public allowlist, and
+    its failure mode is silent in the worst direction: a path wrongly added to
+    it stops being SCANNED while continuing to SHIP — the file would be in the
+    public repo and exempt from the check meant to protect it.
+
+    Nothing in the code prevents that overlap; the two lists merely happen not
+    to intersect. This test is what makes the allowlist ruling hold, because
+    an allowlist that fails closed only fails closed if nothing quietly
+    re-opens it.
+
+    NOTE ON THE SKIP: build_public_repo.py is private-repo tooling and is
+    deliberately absent from the public repo, while this test file ships. The
+    skip is therefore correct rather than convenient — in the public repo
+    there is no allowlist to be disjoint FROM, because the whole tree is the
+    public surface. It is stated out loud so nobody later reads a green run
+    there as evidence this property was checked.
+    """
+    import pathlib
+    import sys
+
+    import pytest
+
+    import scripts.leak_scan as ls
+
+    root = pathlib.Path(ls.__file__).resolve().parent.parent
+    builder = root / "scripts" / "build_public_repo.py"
+    if not builder.is_file():
+        pytest.skip("build_public_repo.py absent — this is the public repo, "
+                    "where the whole tree IS the public surface and there is "
+                    "no allowlist to be disjoint from")
+
+    sys.path.insert(0, str(root / "scripts"))
+    import build_public_repo as bpr
+
+    def norm(p: str) -> str:
+        return p.rstrip("/")
+
+    shippable = {norm(p) for p in bpr.PUBLIC_PATHS} - {norm(p) for p in bpr.EXCLUDE_WITHIN}
+    skipped = {norm(p) for p in ls.PRIVATE_ONLY}
+
+    # Exact collisions.
+    both = shippable & skipped
+    assert not both, (
+        f"paths are BOTH shipped and skip-scanned: {sorted(both)} — they would "
+        "reach the public repo exempt from the scan that guards it")
+
+    # Prefix collisions: PRIVATE_ONLY entries match by startswith, so a
+    # denylist prefix that covers an allowlisted path is the same failure
+    # wearing a different shape.
+    for s in shippable:
+        for k in skipped:
+            assert not s.startswith(k + "/") and s != k, (
+                f"shipped path {s!r} is covered by the skip-scan prefix {k!r}")
+        # …and the reverse: an allowlisted DIRECTORY that contains a
+        # skip-scanned path is fine only because EXCLUDE_WITHIN removes the
+        # specific file; assert that is how it was handled, not by accident.
+        for k in skipped:
+            if k.startswith(s + "/"):
+                assert any(norm(e).startswith(s + "/") for e in bpr.EXCLUDE_WITHIN) or \
+                    not (root / k).exists(), (
+                    f"skip-scanned {k!r} sits inside shipped directory {s!r} "
+                    "with nothing removing it from the build")
